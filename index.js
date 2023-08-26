@@ -7,9 +7,14 @@ const upload = multer({dest: 'uploads/'});
 const helmet = require('helmet');
 const cloudinary = require('cloudinary').v2;
 const axios = require('axios');
+const cookieParser = require('cookie-parser')
+const bcrypt = require('bcrypt')
+const session = require('express-session')
 
 const app = express();
 app.use(express.json());
+app.set('trust proxy', 1)
+app.use(express.json())
 
 app.use(bodyParser.urlencoded({ extended: true }))
 
@@ -23,6 +28,30 @@ app.use(cors({
     methods: ["GET", "POST", "DELETE", "PUT"],
     credentials: true
 }));
+
+app.use(cookieParser())
+app.use(bodyParser.urlencoded({ extended: true }))
+
+app.use(session({
+    key: "user",
+    secret: "secretKeyGoesHere",
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        expires: 1000 * 60 * 60 * 24, // 1 day
+        // secure: true,
+        // sameSite: 'none',
+        // httpOnly: true,
+    }
+}))
+
+// database info
+const database = {
+    host: 'auth-db1009.hstgr.io',
+    user: 'u844237779_mathakadarade',
+    password: 'mathakadara@321DE',
+    database: 'u844237779_mathakadarade'
+}
 
 // Cloudinary Config
 app.use(
@@ -924,6 +953,371 @@ function getPublicIdFromUrl(url) {
   const endIndex = url.lastIndexOf(".");
   return url.substring(startIndex, endIndex);
 }
+
+app.post('/createadmin', async (req, res) => {
+  var Values = []
+  console.log(req.body.password)
+  // hash password
+  try {
+      const hashedPassword = await bcrypt.hash(req.body.password, 10)
+      Values = [
+          req.body.username,
+          hashedPassword
+      ]
+  } catch (error) {
+      console.log(error)
+  }
+  console.log(Values)
+
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = "INSERT INTO user (`username`, `password`) VALUES (?)"
+
+  db.query(sql,[Values], (err, data) => {
+      if (err) {
+        console.error(`Query failed:`, err);
+      } else {
+          console.log('query executed')
+      }
+
+      db.on('error', handleQueryError);
+      db.end()
+  });
+})
+
+app.post('/auth/login', (req, res) => {
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+  console.log(req.body.username)
+
+  const sql = 'SELECT * FROM `user` WHERE `username` = ?'
+
+  db.query(sql, [req.body.username], (err, data) => {
+      if (err) {
+          console.log(err)
+          return res.json('Error')
+      } 
+      console.log(data)
+
+      if (data.length > 0) {
+          bcrypt.compare(req.body.password, data[0].password, (err, response) => {
+              if (response) {
+                  console.log('password correct')
+                  req.session.isLoggedIn = true
+                  req.session.username = data[0].username
+                  return res.json({ loggedIn: true })
+              } else {
+                  console.log('password incorrect')
+                  return res.json({ loggedIn: false })
+              }
+          })
+      } else {
+          console.log('user does not exist')
+          return res.json({ wrongUsername: true})
+      }
+  })
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+app.get('/auth/loginstatus', (req, res ) => {
+  const isLoggedIn = req.session.isLoggedIn || false
+  return res.json({ loggedIn: isLoggedIn})
+})
+
+
+app.get('/getproducts', (req, res) => {
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = 'SELECT `products`.`p_id`, `title`, `cover_image`, `avg_rating`.`rating` FROM `products` RIGHT JOIN `avg_rating` ON `products`.`p_id` = `avg_rating`.`p_id`'
+
+  db.query(sql, (err, data) => {
+      if (err) {
+          console.log(err)
+          return res.json('Error')
+      } 
+      if (data.length > 0) {
+          console.log(data)
+          return res.json(data)
+      }
+  })
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+
+app.get('/product/:id', (req, res) => {
+  console.log('works')
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = 'SELECT * FROM `products` RIGHT JOIN `avg_rating` ON `products`.`p_id` = `avg_rating`.`p_id` WHERE `products`.`p_id` = ?'
+
+  db.query(sql,[req.params.id], (err, data) => {
+      if (err) {
+          console.log(err)
+          return res.json('Error')
+      } 
+      if (data.length > 0) {
+          console.log(data)
+          return res.json(data)
+      }
+  })
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+app.post('/product/inquire', (req, res) => {
+  console.log(req.body)
+  return res.json('success')
+})
+
+app.post('/comment/new' ,(req, res) => {
+  console.log(req.body)
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = 'INSERT INTO `ratings` (`p_id`, `name`, `stars`, `description`) VALUES(?)'
+  const Values = [
+      req.body.productId,
+      req.body.commentName,
+      req.body.rating,
+      req.body.comment
+  ]
+
+  db.query(sql, [Values], (err, data) => {
+      if (err) {
+          console.log(err)
+          return res.json('Error')
+      } else {
+          avgrating(req.body.productId)
+          return res.json('success')
+      }
+  })
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+
+app.get('/comment/get/:id', (req, res) => {
+  const productId = req.params.id
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = "SELECT * FROM `ratings` WHERE `p_id` = ?"
+
+  db.query(sql, [productId], (err, data) => {
+      if (err) {
+          console.log(err)
+          return res.json('Error')
+      } else {
+          return res.json(data)
+      }
+  })
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+const avgrating = (productId) => {
+  console.log('calculate average rating')
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+  let sum = 0
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = "SELECT `stars` FROM `ratings` WHERE `p_id` = ?"
+
+  db.query(sql, [productId], (err, data) => {
+      if (err) {
+          console.log(err)
+      } else {
+          for (let i =0; i < data.length; i++) {
+              sum += data[i].stars
+          }
+          const avg = sum / data.length
+          console.log(Math.round(avg))
+          updateRating(Math.round(avg),productId)
+      }
+  })
+
+  db.on('error', handleQueryError);
+  db.end()
+}
+
+const updateRating = (avg,productId) => {
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = "Update `avg_rating` SET `rating` = ? WHERE `p_id` = ?"
+  db.query(sql, [avg,productId], (err, data) => {
+      if (err) {
+          console.log(err)
+      } else {
+          console.log('updated')
+      }
+  })
+  
+  db.on('error', handleQueryError);
+  db.end()
+}
+
+app.get('/comments/getdata', (req, res) => {
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+  
+  const sql = 'SELECT ratings.r_id, ratings.p_id, ratings.name, ratings.stars, products.title FROM `ratings` INNER JOIN products ON ratings.p_id = products.p_id ORDER BY ratings.r_id DESC'
+
+  db.query(sql, (err, data) => {
+      if (err) {
+          console.log(err)
+          return res.json('Error')
+      } else {
+          return res.json(data)
+      }
+  })
+
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+app.get('/comments/getdata/:id', (req, res) => {
+  const id = req.params.id
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = `SELECT ratings.r_id, ratings.name, ratings.stars, ratings.description, products.title FROM ratings INNER JOIN products ON ratings.p_id = products.p_id WHERE r_id = ${id}`
+
+  db.query(sql, (err, data) => {
+      if(err) {
+          console.log(err)
+          return res.json("error")
+      } else {
+          console.log(data)
+          return res.json(data)
+      }
+  })
+
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+app.get('/products/getnames', (req, res) => {
+  const db = mysql.createConnection({
+      host: database.host,
+      user: database.user,
+      password: database.password,
+      database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = "SELECT p_id, title FROM products"
+
+  db.query(sql, (err, data) => {
+      if (err) {
+          console.log(err)
+          return res.json('Error')
+      } else {
+          return res.json(data)
+      }
+  })
+  
+  db.on('error', handleQueryError);
+  db.end()
+})
 
 
 const port = 5001;
