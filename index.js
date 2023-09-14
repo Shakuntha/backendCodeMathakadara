@@ -39,9 +39,9 @@ app.use(session({
     saveUninitialized: true,
     cookie: {
         expires: 1000 * 60 * 60 * 24, // 1 day
-        // secure: true,
-        // sameSite: 'none',
-        // httpOnly: true,
+        secure: true,
+        sameSite: 'none',
+        httpOnly: true,
     }
 }))
 
@@ -1285,6 +1285,38 @@ app.get('/comments/getdata/:id', (req, res) => {
           console.log(data)
           return res.json(data)
       }
+  })
+
+  db.on('error', handleQueryError);
+  db.end()
+})
+
+app.delete('/comments/delete/:id', (req, res) => {
+  const id = req.params.id
+
+  const db = mysql.createConnection({
+    host: database.host,
+    user: database.user,
+    password: database.password,
+    database: database.database
+  })
+
+  const handleQueryError = (error) => {
+      console.error('An error occurred while executing the query:', error);
+      res.status(500).json({ error: 'An error occurred while executing the query' });
+  };
+
+  const sql = `DELETE FROM ratings WHERE r_id = ${id}`
+
+  db.query(sql, (err, data) => {
+    if(err) {
+        console.log(err)
+        return res.json("error")
+    } else {
+        avgrating(id)
+        console.log('deleted')
+        return res.json('deleted')
+    }
   })
 
   db.on('error', handleQueryError);
