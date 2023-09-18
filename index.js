@@ -20,7 +20,10 @@ app.use(bodyParser.urlencoded({ extended: true }))
 
 const allowedOrigins = [
     'http://localhost:3000',
-    'http://localhost:3001'
+    'http://localhost:3001',
+    'https://products.mathakadara.com',
+    'https://mathakadara.com',
+    'https://dashboard.mathakadara.com'
 ]
 
 app.use(cors({
