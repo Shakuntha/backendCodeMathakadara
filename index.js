@@ -1041,6 +1041,7 @@ app.post('/auth/login', (req, res) => {
 
 app.get('/auth/loginstatus', (req, res ) => {
   const isLoggedIn = req.session.isLoggedIn || false
+  console.log(isLoggedIn)
   return res.json({ loggedIn: isLoggedIn})
 })
 
@@ -1058,7 +1059,7 @@ app.get('/getproducts', (req, res) => {
       res.status(500).json({ error: 'An error occurred while executing the query' });
   };
 
-  const sql = 'SELECT `products`.`p_id`, `title`, `cover_image`, `avg_rating`.`rating` FROM `products` RIGHT JOIN `avg_rating` ON `products`.`p_id` = `avg_rating`.`p_id`'
+  const sql = 'SELECT `products`.`p_id`, `title`, `cover_image`, `avg_rating`.`rating` FROM `products` RIGHT JOIN `avg_rating` ON `products`.`p_id` = `avg_rating`.`p_id` WHERE `status` = `active`'
 
   db.query(sql, (err, data) => {
       if (err) {
