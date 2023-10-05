@@ -1062,7 +1062,7 @@ app.get('/getproducts', (req, res) => {
       res.status(500).json({ error: 'An error occurred while executing the query' });
   };
 
-  const sql = 'SELECT `products`.`p_id`, `title`, `cover_image`, `avg_rating`.`rating` FROM `products` RIGHT JOIN `avg_rating` ON `products`.`p_id` = `avg_rating`.`p_id` WHERE `status` = `active`'
+  const sql = 'SELECT `products`.`p_id`, `title`, `cover_image`, `avg_rating`.`rating` FROM `products` RIGHT JOIN `avg_rating` ON `products`.`p_id` = `avg_rating`.`p_id` WHERE `products`.`status` = "active"'
 
   db.query(sql, (err, data) => {
       if (err) {
